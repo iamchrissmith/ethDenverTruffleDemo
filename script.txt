@@ -1,0 +1,149 @@
+What is Truffle:
+Ethereum and smart contract development framework
+Contains tools for:
+Compiling, linking, deploying and managing contracts
+Automated Testing tools
+Deployment and Migration scripts
+Network management for keeping track of contracts deployed on different networks
+External Packages from NPM and EthPM
+Console for interacting with contracts
+Scripting for interacting with contracts
+
+mkdir denvertoken
+cd denvertoken
+truffle unbox tutorialtoken
+
+# run through folder structure: 
+## contracts
+## migrations
+## src
+## test
+## truffle.js
+
+code contracts/DenverToken.sol
+
+pragma solidity ^0.4.17;
+
+contract DenverToken {
+}
+
+npm install zeppelin-solidity
+
+import 'zeppelin-solidity/contracts/token/ERC20/StandardToken.sol';
+
+contract DenverToken is StandardToken, Ownable {
+
+string public name = "DenverToken";
+string public symbol = "DT";
+uint8 public decimals = 2;
+uint public INITIAL_SUPPLY = 20000;
+
+function DenverToken() public {
+  totalSupply_ = INITIAL_SUPPLY;
+  balances[msg.sender] = INITIAL_SUPPLY;
+}
+
+code migrations/2_deploy_contracts.js
+
+const DenverToken = artifacts.require("DenverToken");
+
+module.exports = function(deployer) {
+  deployer.deploy(DenverToken);
+};
+
+truffle compile
+
+# Ganache
+
+truffle migrate
+truffle console
+let instance = null
+DenverToken.deployed().then(_instance => instance = _instance)
+instance.totalSupply.call().then(result => result.toString())
+instance.balanceOf.call('0x627306090abab3a6e1400e9345bc60c78a8bef57').then(result => result.toString())
+instance.transfer('0xf17f52151EbEF6C7334FAD080c5704D77216b732', 1234).then(result => console.log(result.logs[0].args))
+instance.balanceOf.call('0xf17f52151EbEF6C7334FAD080c5704D77216b732').then(result => result.toString())
+instance.balanceOf.call('0x627306090abab3a6e1400e9345bc60c78a8bef57').then(result => result.toString())
+
+# add ownership
+Add zeppelin Ownable.sol to DenverToken
+console > migrate --reset
+DenverToken.deployed().then(_instance => instance = _instance)
+instance.owner.call().then(result => result.toString())
+
+DenverToken.sol
+
+import 'zeppelin-solidity/contracts/ownership/Ownable.sol';
+
+contract DenverToken is StandardToken, Ownable {
+
+# now we want to add some custom functionality to our contract
+
+console > .exit
+
+# TESTING
+
+code test/changeName.test.js
+
+const DenverToken = artifacts.require('./DenverToken.sol')
+
+contract('DenverToken', function(accounts) {
+  const owner = accounts[0]
+  const notOwner = accounts[1]
+
+  let contract = null
+
+  beforeEach( async () => {
+    contract = await DenverToken.new({from:owner})
+  })
+
+  describe('.changeName', () => {
+    it('it should allow the owner to change the token name', async () => {
+      const newName = 'New Name'
+      await contract.changeName(newName, {from:owner})
+      const currentName = await contract.name.call()
+      assert.equal(currentName, newName, "name did not successfully change")
+    })
+   })
+})
+
+truffle test
+
+# Switch to DenverToken.sol 
+
+function changeName(string _name) 
+  public 
+  onlyOwner 
+  returns (bool success)
+{
+  name = _name;
+  return true;
+}
+
+truffle test
+
+Add a sad path test
+const isEVMException = err => (
+  err.toString().includes('revert')
+)
+
+...
+
+it('it should not allow other accounts to change the token name', async () => {
+  const errMsg = "A non-owner was allowed to change the name"
+  const newName = 'New Name'
+  const originalName = await contract.name.call()
+  
+  try {
+    await contract.changeName(newName, {from:notOwner})
+  } catch(err) {
+    assert(isEVMException(err), err.toString())
+
+    const currentName = await contract.name.call()
+
+    assert.equal(currentName, originalName, errMsg)
+    return
+  }
+
+  assert(false, errMsg)
+})
